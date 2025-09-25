@@ -2,4 +2,4 @@
 command = "npm install && npm run build"
 
 [start]
-command = "npm run preview"
+command = "npm run preview -- --host 0.0.0.0 --port ${PORT}"
