@@ -8,102 +8,47 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Smartphone, Wifi, WifiOff, Plus } from "lucide-react";
+import { Smartphone, Wifi, WifiOff, Plus, Settings } from "lucide-react";
+import { getStatus, sendMessage, getQRCode } from "@/lib/api";
 
 const Dispositivos = () => {
-  const [status, setStatus] = useState<"online" | "offline">("offline");
-  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [status, setStatus] = useState<{ connected?: boolean; error?: string } | null>(null);
   const [loading, setLoading] = useState(false);
-  const [logs, setLogs] = useState<string[]>([]); // logs em tempo real
+  const [qrcode, setQrcode] = useState<string | null>(null);
 
-  // Função para gerar QR Code manualmente (fallback)
-  const fetchQrCode = async () => {
+  // 🔎 Carregar status quando abrir a página
+  useEffect(() => {
+    setLoading(true);
+    getStatus()
+      .then((res) => setStatus(res))
+      .catch((err) => {
+        console.error(err);
+        setStatus({ connected: false, error: "Erro ao buscar status" });
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  // ✉️ Testar envio de mensagem
+  const handleSendTest = async () => {
     try {
-      setLoading(true);
-      const response = await fetch(
-        `https://api.z-api.io/instances/${
-          import.meta.env.VITE_ZAPI_INSTANCE_ID
-        }/token/${import.meta.env.VITE_ZAPI_TOKEN}/qr-code/image`,
-        {
-          headers: {
-            "Client-Token": import.meta.env.VITE_ZAPI_CLIENT_TOKEN,
-          },
-        }
-      );
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      setQrCode(url);
+      const res = await sendMessage("5511999999999", "🚀 Teste pela ZapLynx");
+      alert("Mensagem enviada: " + JSON.stringify(res));
     } catch (err) {
-      console.error("❌ Erro ao gerar QR Code:", err);
-    } finally {
-      setLoading(false);
+      console.error(err);
+      alert("Erro ao enviar mensagem!");
     }
   };
 
-  // Conectar ao WebSocket da Z-API
-  useEffect(() => {
-    const wsUrl = `wss://api.z-api.io/instances/${
-      import.meta.env.VITE_ZAPI_INSTANCE_ID
-    }/token/${import.meta.env.VITE_ZAPI_TOKEN}/websocket`;
-    const socket = new WebSocket(wsUrl, [
-      import.meta.env.VITE_ZAPI_CLIENT_TOKEN,
-    ]);
-
-    socket.onopen = () => {
-      console.log("🔌 WebSocket conectado");
-      setLogs((prev) => [
-        ...prev,
-        "🔌 Conectado ao WebSocket da Z-API",
-      ]);
-    };
-
-    socket.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log("📡 Evento recebido:", data);
-
-        if (data.type === "CONNECTED") {
-          setStatus("online");
-          setQrCode(null);
-          setLogs((prev) => [...prev, "✅ Dispositivo conectado"]);
-        } else if (data.type === "DISCONNECTED") {
-          setStatus("offline");
-          setLogs((prev) => [...prev, "⚠️ Dispositivo desconectado"]);
-        } else if (data.type === "QRCODE") {
-          setStatus("offline");
-          setQrCode(`data:image/png;base64,${data.qrCode}`);
-          setLogs((prev) => [...prev, "📷 QR Code gerado, escaneie no celular"]);
-        } else if (data.type === "MESSAGE") {
-          setLogs((prev) => [
-            ...prev,
-            `📩 Mensagem recebida de ${data.phone}: ${data.message}`,
-          ]);
-        } else if (data.type === "SENT_MESSAGE") {
-          setLogs((prev) => [
-            ...prev,
-            `📤 Mensagem enviada para ${data.phone}: ${data.message}`,
-          ]);
-        } else if (data.type === "DELETED_MESSAGE") {
-          setLogs((prev) => [
-            ...prev,
-            `🗑️ Mensagem apagada: ${data.messageId}`,
-          ]);
-        }
-      } catch (err) {
-        console.error("Erro ao processar mensagem WS:", err);
-      }
-    };
-
-    socket.onclose = () => {
-      console.log("❌ WebSocket desconectado");
-      setStatus("offline");
-      setLogs((prev) => [...prev, "❌ WebSocket desconectado"]);
-    };
-
-    return () => {
-      socket.close();
-    };
-  }, []);
+  // 🔑 Buscar QR Code
+  const handleQRCode = async () => {
+    try {
+      const res = await getQRCode();
+      setQrcode(res.qrcode); // backend retorna { qrcode: base64 }
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao buscar QR Code");
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -111,15 +56,18 @@ const Dispositivos = () => {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Dispositivos</h1>
           <p className="text-muted-foreground">
-            Gerencie seus dispositivos WhatsApp conectados
+            Gerencie seus dispositivos WhatsApp conectados via Z-API
           </p>
         </div>
-        {status === "offline" && (
-          <Button onClick={fetchQrCode} className="flex items-center gap-2">
+        <div className="flex gap-2">
+          <Button className="flex items-center gap-2" onClick={handleSendTest}>
             <Plus className="w-4 h-4" />
-            {loading ? "Gerando QR..." : "Conectar Dispositivo"}
+            Enviar Teste
           </Button>
-        )}
+          <Button variant="outline" onClick={handleQRCode}>
+            Conectar Dispositivo
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -128,14 +76,18 @@ const Dispositivos = () => {
             <div className="flex items-center gap-3">
               <Smartphone className="w-8 h-8 text-primary" />
               <div>
-                <CardTitle className="text-lg">WhatsApp Principal</CardTitle>
+                <CardTitle className="text-lg">WhatsApp</CardTitle>
                 <CardDescription>
-                  Instância {import.meta.env.VITE_ZAPI_INSTANCE_ID}
+                  {loading
+                    ? "Verificando..."
+                    : status?.connected
+                    ? "Instância ativa ✅"
+                    : "Instância offline ❌"}
                 </CardDescription>
               </div>
             </div>
-            <Badge variant={status === "online" ? "default" : "secondary"}>
-              {status === "online" ? (
+            <Badge variant={status?.connected ? "default" : "secondary"}>
+              {status?.connected ? (
                 <>
                   <Wifi className="w-3 h-3 mr-1" /> Online
                 </>
@@ -145,52 +97,33 @@ const Dispositivos = () => {
                 </>
               )}
             </Badge>
+            <Button variant="outline" size="sm">
+              <Settings className="w-4 h-4" />
+            </Button>
           </div>
         </CardHeader>
-        <CardContent>
-          {status === "offline" && qrCode && (
-            <div className="flex flex-col items-center gap-2">
-              <p className="text-sm text-muted-foreground">
-                Escaneie o QR Code abaixo no WhatsApp para conectar:
-              </p>
-              <img
-                src={qrCode}
-                alt="QR Code"
-                className="w-56 h-56 border rounded"
-              />
-            </div>
-          )}
-          {status === "online" && (
-            <p className="text-sm text-green-600">
-              ✅ Dispositivo conectado e pronto para enviar mensagens!
-            </p>
-          )}
-        </CardContent>
-      </Card>
+       <CardContent>
+  {status?.error && (
+    <p className="text-red-500 text-sm">Erro: {status.error}</p>
+  )}
 
-      {/* LOG EM TEMPO REAL */}
-      <Card>
-        <CardHeader>
-          <CardTitle>📜 Log em Tempo Real</CardTitle>
-          <CardDescription>
-            Eventos recebidos do WebSocket da Z-API
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="bg-muted/50 p-3 rounded-lg h-64 overflow-y-auto text-sm space-y-1">
-            {logs.length === 0 ? (
-              <p className="text-muted-foreground">
-                Nenhum evento ainda...
-              </p>
-            ) : (
-              logs.map((log, i) => (
-                <div key={i} className="font-mono">
-                  {log}
-                </div>
-              ))
-            )}
-          </div>
-        </CardContent>
+  {status?.connected && (
+    <p className="text-sm text-green-600">
+      ✅ Dispositivo conectado e pronto para enviar mensagens!
+    </p>
+  )}
+
+  {qrcode && (
+    <div className="mt-4 flex flex-col items-center">
+      <p className="text-sm mb-2">Escaneie este QR Code no WhatsApp:</p>
+      <img
+        src={`data:image/png;base64,${qrcode}`}
+        alt="QR Code"
+        className="border rounded-lg shadow-md"
+      />
+    </div>
+  )}
+</CardContent>
       </Card>
     </div>
   );
