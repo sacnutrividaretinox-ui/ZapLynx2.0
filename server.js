@@ -1,56 +1,23 @@
-// server.js
 import express from "express";
-import axios from "axios";
-import cors from "cors";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Variáveis do Railway
-const { ZAPI_INSTANCE_ID, ZAPI_TOKEN, ZAPI_CLIENT_TOKEN } = process.env;
+// 📂 Pasta do build do Vite
+const distPath = join(__dirname, "dist");
 
-// ✅ Rota para testar status
-app.get("/api/status", async (req, res) => {
-  try {
-    const response = await axios.get(
-      `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/status`,
-      {
-        headers: {
-          "Client-Token": ZAPI_CLIENT_TOKEN,
-        },
-      }
-    );
-    res.json(response.data);
-  } catch (error) {
-    res.status(500).json({
-      error: error.message,
-      data: error.response?.data,
-    });
-  }
+// Servir arquivos estáticos
+app.use(express.static(distPath));
+
+// Redirecionar todas as rotas para o index.html (SPA)
+app.get("*", (req, res) => {
+  res.sendFile(join(distPath, "index.html"));
 });
 
-// ✅ Rota para enviar mensagem
-app.post("/api/send", async (req, res) => {
-  const { phone, message } = req.body;
-  try {
-    const response = await axios.post(
-      `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-messages`,
-      { phone, message },
-      {
-        headers: {
-          "Client-Token": ZAPI_CLIENT_TOKEN,
-        },
-      }
-    );
-    res.json(response.data);
-  } catch (error) {
-    res.status(500).json({
-      error: error.message,
-      data: error.response?.data,
-    });
-  }
-});
-
+// Porta fornecida pelo Railway
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✅ Server rodando na porta ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+});
