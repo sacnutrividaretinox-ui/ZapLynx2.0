@@ -1,23 +1,21 @@
 import express from "express";
-import { join, dirname } from "path";
+import path from "path";
 import { fileURLToPath } from "url";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const PORT = process.env.PORT || 3000;
 
-// 📂 Pasta do build do Vite
-const distPath = join(__dirname, "dist");
+// Serve os arquivos estáticos da pasta dist (build do Vite)
+app.use(express.static(path.join(__dirname, "dist")));
 
-// Servir arquivos estáticos
-app.use(express.static(distPath));
-
-// Redirecionar todas as rotas para o index.html (SPA)
+// Redireciona qualquer rota para o index.html (SPA React Router)
 app.get("*", (req, res) => {
-  res.sendFile(join(distPath, "index.html"));
+  res.sendFile(path.join(__dirname, "dist", "index.html"));
 });
 
-// Porta fornecida pelo Railway
-const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
