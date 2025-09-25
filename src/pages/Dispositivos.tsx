@@ -1,54 +1,59 @@
 import { useEffect, useState } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Smartphone, Wifi, WifiOff, Plus, Settings } from "lucide-react";
-import { getStatus, sendMessage, getQRCode } from "@/lib/api";
+import api from "../lib/api";
+
+type Dispositivo = {
+  id: number;
+  nome: string;
+  numero: string;
+  status: "online" | "offline";
+  mensagensEnviadas: number;
+  ultima_atividade: string;
+};
 
 const Dispositivos = () => {
-  const [status, setStatus] = useState<{ connected?: boolean; error?: string } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [qrcode, setQrcode] = useState<string | null>(null);
+  const [dispositivos, setDispositivos] = useState<Dispositivo[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // 🔎 Carregar status quando abrir a página
   useEffect(() => {
-    setLoading(true);
-    getStatus()
-      .then((res) => setStatus(res))
-      .catch((err) => {
-        console.error(err);
-        setStatus({ connected: false, error: "Erro ao buscar status" });
-      })
-      .finally(() => setLoading(false));
+    const fetchStatus = async () => {
+      try {
+        // ⚡ pega variáveis do backend (Railway)
+        const instanceId = import.meta.env.VITE_ZAPI_INSTANCE_ID;
+        const token = import.meta.env.VITE_ZAPI_TOKEN;
+
+        const { data } = await api.get(
+          `/instances/${instanceId}/token/${token}/status`
+        );
+
+        const status = data.connected ? "online" : "offline";
+
+        setDispositivos([
+          {
+            id: 1,
+            nome: "WhatsApp Principal",
+            numero: "+55 11 99999-9999",
+            status,
+            mensagensEnviadas: 1250,
+            ultima_atividade: "Agora",
+          },
+        ]);
+      } catch (error) {
+        console.error("Erro ao buscar status do dispositivo:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStatus();
   }, []);
 
-  // ✉️ Testar envio de mensagem
-  const handleSendTest = async () => {
-    try {
-      const res = await sendMessage("5511999999999", "🚀 Teste pela ZapLynx");
-      alert("Mensagem enviada: " + JSON.stringify(res));
-    } catch (err) {
-      console.error(err);
-      alert("Erro ao enviar mensagem!");
-    }
-  };
-
-  // 🔑 Buscar QR Code
-  const handleQRCode = async () => {
-    try {
-      const res = await getQRCode();
-      setQrcode(res.qrcode); // backend retorna { qrcode: base64 }
-    } catch (err) {
-      console.error(err);
-      alert("Erro ao buscar QR Code");
-    }
-  };
+  if (loading) {
+    return <p>Carregando dispositivos...</p>;
+  }
 
   return (
     <div className="space-y-6">
@@ -56,75 +61,66 @@ const Dispositivos = () => {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Dispositivos</h1>
           <p className="text-muted-foreground">
-            Gerencie seus dispositivos WhatsApp conectados via Z-API
+            Gerencie seus dispositivos WhatsApp conectados
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button className="flex items-center gap-2" onClick={handleSendTest}>
-            <Plus className="w-4 h-4" />
-            Enviar Teste
-          </Button>
-          <Button variant="outline" onClick={handleQRCode}>
-            Conectar Dispositivo
-          </Button>
-        </div>
+        <Button className="flex items-center gap-2">
+          <Plus className="w-4 h-4" />
+          Conectar Dispositivo
+        </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Smartphone className="w-8 h-8 text-primary" />
-              <div>
-                <CardTitle className="text-lg">WhatsApp</CardTitle>
-                <CardDescription>
-                  {loading
-                    ? "Verificando..."
-                    : status?.connected
-                    ? "Instância ativa ✅"
-                    : "Instância offline ❌"}
-                </CardDescription>
+      <div className="grid gap-4">
+        {dispositivos.map((dispositivo) => (
+          <Card key={dispositivo.id}>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Smartphone className="w-8 h-8 text-primary" />
+                  <div>
+                    <CardTitle className="text-lg">{dispositivo.nome}</CardTitle>
+                    <CardDescription>{dispositivo.numero}</CardDescription>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant={
+                      dispositivo.status === "online" ? "default" : "secondary"
+                    }
+                  >
+                    {dispositivo.status === "online" ? (
+                      <>
+                        <Wifi className="w-3 h-3 mr-1" /> Online
+                      </>
+                    ) : (
+                      <>
+                        <WifiOff className="w-3 h-3 mr-1" /> Offline
+                      </>
+                    )}
+                  </Badge>
+                  <Button variant="outline" size="sm">
+                    <Settings className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
-            </div>
-            <Badge variant={status?.connected ? "default" : "secondary"}>
-              {status?.connected ? (
-                <>
-                  <Wifi className="w-3 h-3 mr-1" /> Online
-                </>
-              ) : (
-                <>
-                  <WifiOff className="w-3 h-3 mr-1" /> Offline
-                </>
-              )}
-            </Badge>
-            <Button variant="outline" size="sm">
-              <Settings className="w-4 h-4" />
-            </Button>
-          </div>
-        </CardHeader>
-       <CardContent>
-  {status?.error && (
-    <p className="text-red-500 text-sm">Erro: {status.error}</p>
-  )}
-
-  {status?.connected && (
-    <p className="text-sm text-green-600">
-      ✅ Dispositivo conectado e pronto para enviar mensagens!
-    </p>
-  )}
-
-  {qrcode && (
-    <div className="mt-4 flex flex-col items-center">
-      <p className="text-sm mb-2">Escaneie este QR Code no WhatsApp:</p>
-      <img
-        src={`data:image/png;base64,${qrcode}`}
-        alt="QR Code"
-        className="border rounded-lg shadow-md"
-      />
-    </div>
-  )}
-</CardContent>
-      </Card>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Mensagens Enviadas</p>
+                  <p className="font-semibold">
+                    {dispositivo.mensagensEnviadas.toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Última Atividade</p>
+                  <p className="font-semibold">{dispositivo.ultima_atividade}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 };
